@@ -1,0 +1,3 @@
+https://supabase.com/blog/openai-embeddings-postgres-vector
+
+DB_PW=LLW4ZgUhZDJ1VTSF
