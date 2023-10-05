@@ -1,11 +1,12 @@
 import os
 
-from fastapi import Depends, FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI
 
 from app.dependencies.common import get_db_service
 from app.models.assignment import Assignment
 from app.services.auth_service import AuthService
 from app.services.db_service import DatabaseService
+from app.tasks import generate_and_upload_samples
 
 app = FastAPI()
 ENV = os.environ.get("ENV", "dev")
@@ -23,6 +24,7 @@ async def root():
 async def create_assignment(
     user_id: str,
     new_assignment: Assignment,
+    background_tasks: BackgroundTasks,
     db_service: DatabaseService = Depends(get_db_service),
     current_user=Depends(AuthService.get_current_user),
 ):
@@ -40,6 +42,14 @@ async def create_assignment(
 
     print("assignment created")
     # now start the background task to generate and upload the sample responses
+
+    background_tasks.add_task(
+        generate_and_upload_samples,
+        user_id,
+        assignment_id,
+        new_assignment.prompt,
+        new_assignment.word_limit,
+    )
 
     return {"assignment_id": assignment_id}
 

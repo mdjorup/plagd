@@ -198,10 +198,10 @@ class Supabase(DatabaseService):
     ) -> int:
         # returns a sample_response)id
 
-        try:
-            self.get_assignment(user_id, assignment_id)
-        except RuntimeError:
-            raise RuntimeError(f"No assignment found with id: {assignment_id}")
+        # try:
+        #     self.get_assignment(user_id, assignment_id)
+        # except RuntimeError:
+        #     raise RuntimeError(f"No assignment found with id: {assignment_id}")
 
         response = (
             self.supabase.table("responses")

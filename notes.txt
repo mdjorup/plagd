@@ -1,3 +1,4 @@
 https://supabase.com/blog/openai-embeddings-postgres-vector
+https://testdriven.io/blog/fastapi-and-celery/
 
 DB_PW=LLW4ZgUhZDJ1VTSF

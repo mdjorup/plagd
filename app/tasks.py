@@ -1,14 +1,25 @@
-# tasks.py
-from celery_app import celery_app
+import asyncio
 
-from app.dependencies.common import get_llm_service
-from app.services.llm_service import (
-    LLMService,
-)  # Assuming llm_service.py defines LLMService
+from app.dependencies.common import get_db_service, get_llm_service
 
 
-@celery_app.task
-def generate_and_upload_samples(assignment_id, prompt, word_limit):
-    llm_service: LLMService = get_llm_service()
+async def generate_and_upload_samples(
+    user_id: str, assignment_id: int, prompt: str, word_limit: int
+):
+    llm_service = get_llm_service()
+    db_service = get_db_service()
 
-    # Now use llm_service to generate and upload sample responses
+    # clean up prompt
+    prompt = prompt.strip().replace("\n", " ")
+    # remove double spaces
+    prompt = " ".join(prompt.split())
+
+    samples = await llm_service.generate_samples(prompt, word_limit, 2)
+
+    async def handle_sample(sample):
+        embedding = await llm_service.get_embedding(sample)
+        db_service.save_sample_response(user_id, assignment_id, sample, embedding)
+
+    async with asyncio.TaskGroup() as tg:
+        for sample in samples:
+            tg.create_task(handle_sample(sample))

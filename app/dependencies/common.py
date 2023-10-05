@@ -3,7 +3,8 @@ import os
 from dotenv import load_dotenv
 
 from app.services.db_service import DatabaseService, MockDBService, Supabase
-from app.services.llm_service import LLMService, MockLLMService
+from app.services.llm_service import (LLMService, MockLLMService,
+                                      OpenAILLMService)
 
 load_dotenv()
 
@@ -19,4 +20,4 @@ def get_db_service() -> DatabaseService:
 def get_llm_service() -> LLMService:
     if DEV_MODE:
         return MockLLMService()
-    return MockLLMService()
+    return OpenAILLMService()
