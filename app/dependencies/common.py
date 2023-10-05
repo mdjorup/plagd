@@ -3,8 +3,7 @@ import os
 from dotenv import load_dotenv
 
 from app.services.db_service import DatabaseService, MockDBService, Supabase
-from app.services.llm_service import (LLMService, MockLLMService,
-                                      OpenAILLMService)
+from app.services.llm_service import LLMService, MockLLMService, OpenAILLMService
 
 load_dotenv()
 

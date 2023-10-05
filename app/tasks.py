@@ -1,6 +1,7 @@
 import asyncio
 
 from app.dependencies.common import get_db_service, get_llm_service
+from app.utils import condense_whitespace
 
 
 async def generate_and_upload_samples(
@@ -9,12 +10,9 @@ async def generate_and_upload_samples(
     llm_service = get_llm_service()
     db_service = get_db_service()
 
-    # clean up prompt
-    prompt = prompt.strip().replace("\n", " ")
-    # remove double spaces
-    prompt = " ".join(prompt.split())
+    cleaned_prompt = condense_whitespace(prompt)
 
-    samples = await llm_service.generate_samples(prompt, word_limit, 2)
+    samples = await llm_service.generate_samples(cleaned_prompt, word_limit, 2)
 
     async def handle_sample(sample):
         embedding = await llm_service.get_embedding(sample)

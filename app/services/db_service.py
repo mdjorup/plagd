@@ -1,10 +1,14 @@
+import ast
 import os
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
 import numpy as np
 from dotenv import load_dotenv
+from fastapi import HTTPException
 from supabase_py import Client, create_client
+
+from app.utils import cosine_similarity
 
 
 # this is designed with user-awareness in mind. We assume we know who the user is
@@ -65,7 +69,7 @@ class DatabaseService(ABC):
         pass
 
     @abstractmethod
-    def check_submission(
+    async def check_submission(
         self, user_id: str, assignment_id: int, embedding: np.ndarray
     ) -> List[Dict]:
         """
@@ -115,7 +119,7 @@ class MockDBService(DatabaseService):
         # returns a sample_response)id
         return 0
 
-    def check_submission(
+    async def check_submission(
         self, user_id: str, assignment_id: int, embedding: np.ndarray
     ) -> List[Dict]:
         # Checks if the submission is similar to the sample responses
@@ -171,6 +175,21 @@ class Supabase(DatabaseService):
 
         return assignment_id
 
+    def check_user_own_assignment(self, user_id: str, assignment_id: int) -> None:
+        response = (
+            self.supabase.table("assignments")
+            .select("id, user_id")  # type: ignore
+            .eq("id", assignment_id)
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+
+        if "data" not in response or not response["data"]:
+            raise HTTPException(
+                403, f"User does not own assignment with id: {assignment_id}"
+            )
+
     def get_assignment(self, user_id: str, assignment_id: int) -> Dict:
         # returns the assignment metadata
         # and returns the embeddings of the sample responses
@@ -198,11 +217,6 @@ class Supabase(DatabaseService):
     ) -> int:
         # returns a sample_response)id
 
-        # try:
-        #     self.get_assignment(user_id, assignment_id)
-        # except RuntimeError:
-        #     raise RuntimeError(f"No assignment found with id: {assignment_id}")
-
         response = (
             self.supabase.table("responses")
             .insert(  # type: ignore
@@ -225,10 +239,39 @@ class Supabase(DatabaseService):
 
         return sample_response_id
 
-    def check_submission(
+    async def check_submission(
         self, user_id: str, assignment_id: int, embedding: np.ndarray
     ) -> List[dict]:
         # Checks if the submission is similar to the sample responses
         # returns the top 3 similar sample responses
 
-        return []
+        if embedding.shape != (1536,):
+            raise HTTPException(500, "Unable to compare embedding")
+
+        # make sure that the user owns the assignment
+        # self.check_user_own_assignment(user_id, assignment_id)
+
+        similarity_threshold = 0.5
+
+        response = self.supabase.table("responses").select("assignment_id, embedding, response_text").eq("assignment_id", str(assignment_id)).execute()  # type: ignore
+
+        if "data" not in response or not response["data"]:
+            raise HTTPException(500, response)
+
+        # response is a list of {assignment_id, embedding, response_text}
+
+        similarities = []
+        for sample in response["data"]:
+            sample_embedding = np.array(ast.literal_eval(sample["embedding"]))
+            print(sample_embedding.shape)
+            sim = cosine_similarity(embedding, sample_embedding)
+            if sim > similarity_threshold:
+                sample["similarity"] = sim
+                del sample["embedding"]
+                similarities.append((sim, sample))
+
+        top_similar = sorted(similarities, key=lambda x: x[0], reverse=True)[:3]
+
+        top_responses = [x[1] for x in top_similar]
+
+        return top_responses

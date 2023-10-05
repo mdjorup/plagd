@@ -2,10 +2,12 @@ import os
 
 from fastapi import BackgroundTasks, Depends, FastAPI
 
-from app.dependencies.common import get_db_service
+from app.dependencies.common import get_db_service, get_llm_service
 from app.models.assignment import Assignment
+from app.models.submission import Submission
 from app.services.auth_service import AuthService
 from app.services.db_service import DatabaseService
+from app.services.llm_service import LLMService
 from app.tasks import generate_and_upload_samples
 
 app = FastAPI()
@@ -55,6 +57,19 @@ async def create_assignment(
 
 
 @app.post("/user/{user_id}/assignments/{assignment_id}/compare/")
-async def compare_text(user_id: int, assignment_id: int, text: str):
+async def compare_text(
+    user_id: str,
+    assignment_id: int,
+    submission: Submission,
+    db_service: DatabaseService = Depends(get_db_service),
+    llm_service: LLMService = Depends(get_llm_service),
+    current_user=Depends(AuthService.get_current_user),
+):
     # Based on user_id, compare the text with stored sample responses and return similarity score
-    pass
+    AuthService.authorize_user(current_user, user_id)
+
+    embedding = await llm_service.get_embedding(submission.text)
+
+    result = await db_service.check_submission(user_id, assignment_id, embedding)
+
+    return result

@@ -6,6 +6,8 @@ from typing import List
 import aiohttp
 import numpy as np
 
+from app.utils import condense_whitespace, word_limit_to_tokens
+
 
 class LLMService(ABC):
     @abstractmethod
@@ -31,6 +33,8 @@ class OpenAILLMService(LLMService):
     async def generate_samples(
         self, prompt: str, word_limit: int, n: int = 1
     ) -> List[str]:
+        max_tokens = word_limit_to_tokens(word_limit)
+
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
@@ -43,6 +47,7 @@ class OpenAILLMService(LLMService):
             ],
             "n": n,
             "temperature": 1.5,
+            "max_tokens": max_tokens,
         }
 
         url = "https://api.openai.com/v1/chat/completions"
@@ -54,10 +59,11 @@ class OpenAILLMService(LLMService):
                     return await self.generate_samples(prompt, word_limit, n)
                 response_data = await response.json()
 
-        samples = [s["message"]["content"].strip().replace("\n", " ") for s in response_data["choices"]]  # type: ignore
+        samples = [s["message"]["content"] for s in response_data["choices"]]  # type: ignore
         return samples
 
     async def get_embedding(self, text: str) -> np.ndarray:
+        print("getting embedding")
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}",
@@ -67,11 +73,13 @@ class OpenAILLMService(LLMService):
 
         url = "https://api.openai.com/v1/embeddings"
 
+        condensed_text = condense_whitespace(text)
+
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=data) as response:
                 if response.status == 429:
                     await asyncio.sleep(2)
-                    return await self.get_embedding(text)
+                    return await self.get_embedding(condensed_text)
                 response_data = await response.json()
 
         embedding = np.array(response_data["data"][0]["embedding"])
